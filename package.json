@@ -1,6 +1,6 @@
 {
   "name": "tow96-amqpwrapper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Wrapper for amqlib that I utilize for communication between services.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
