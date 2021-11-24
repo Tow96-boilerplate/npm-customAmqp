@@ -18,7 +18,6 @@ export default class Queue {
   // Gets some values from the env, if not present, uses default values
   static serverUrl: string = process.env.RABBITMQ_URL || 'amqp://localhost';
   static exchangeName: string = process.env.EXCHANGE_NAME || 'exchange';
-  static queueName: string = process.env.NAME || 'localQueue';
 
   /** startConnection
    *
@@ -69,15 +68,22 @@ export default class Queue {
    * @param {string} routingKey routing for exchange
    * @param {AmqpMessage} message data to be sent
    *
-   * @returns {string} The correlationId to the sent message
+   * @returns {string} The correlationId and replyTo queueName to the sent message
    */
-  static publishWithReply = (channel: amqlib.Channel, routingKey: string, message: AmqpMessage): string => {
+  static publishWithReply = async (
+    channel: amqlib.Channel,
+    routingKey: string,
+    message: AmqpMessage,
+  ): Promise<string> => {
     // Creates a random ID for the replyTo
     const corrId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+    // Asserts the replyTo queue in exclusive mode and with a 10s expiration if it doesn't have any consumer
+    await channel.assertQueue(corrId, { exclusive: true, expires: 10 * 1000 });
+
     // Sends the message asynchronously
     channel.publish(Queue.exchangeName, routingKey, Buffer.from(JSON.stringify(message)), {
-      replyTo: Queue.queueName,
+      replyTo: corrId,
       correlationId: corrId,
     });
 
@@ -123,19 +129,21 @@ export default class Queue {
     logger.debug(`Answered to queue: ${queue}`);
   };
 
-  /** fetchFromLocalQueue
+  /** fetchFromQueue
    *
-   * Reads the messages on the localQueue for a message with the given correlationId
+   * Reads the messages on a Queue for a message with the given correlationId
    * It's used to fetch responses from the services. Has a timeout function implemented as well.
    *
    * @param {amqlib.Channel} channel Channel that will be used
+   * @param {string} queueName name of the queue that will be read
    * @param {string} correlationId correlation Id of the message that is being looked upon
    * @param {number} timeout Timeout in seconds (default 10s)
    *
    * @retunrs {AmqpMessage} Response message
    */
-  static fetchFromLocalQueue = async (
+  static fetchFromQueue = async (
     channel: amqlib.Channel,
+    queueName: string,
     correlationId: string,
     timeout: number = 10,
   ): Promise<AmqpMessage> => {
@@ -145,16 +153,25 @@ export default class Queue {
     let response = new AmqpMessage();
 
     while (Date.now() - startTime < timeout * 1000 && !responded) {
-      const message = await channel.get(Queue.queueName, { noAck: false });
+      const message = await channel.get(queueName, { noAck: false });
 
       if (message) {
         if (message.properties.correlationId === correlationId) {
-          channel.ack(message);
           response = JSON.parse(message.content.toString()) as AmqpMessage;
           responded = true;
+          channel.ack(message);
+        }
+        // If the CorrelationId doesn't match, the message is moved to the end of the queue
+        else {
+          channel.ack(message);
+          channel.sendToQueue(queueName, Buffer.from(message.content.toString()), {
+            correlationId: message.properties.correlationId,
+          });
         }
       }
     }
+
+    channel.deleteQueue(queueName);
 
     return response;
   };
