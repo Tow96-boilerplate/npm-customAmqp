@@ -7,12 +7,12 @@
  */
 
 import { Response } from 'express';
-export default class AmqpMessage {
+export default class AmqpMessage<P = any> {
   status: number;
   type: string;
-  payload: any;
+  payload: P;
 
-  constructor(thePayload: any = null, theType: string = '', theStatus: number = 500) {
+  constructor(thePayload: P = {} as P, theType: string = '', theStatus: number = 500) {
     this.status = theStatus;
     this.type = theType;
     this.payload = thePayload;
@@ -27,7 +27,7 @@ export default class AmqpMessage {
    *
    * @returns AmqpMessage
    */
-  static errorMessage = (message: string, status: number = 500, errors: any = null): AmqpMessage => {
+  static errorMessage = (message: string, status: number = 500, errors: any = null): AmqpMessage<any> => {
     // Creates the payload
     const payload: any = { message };
     if (errors) {
