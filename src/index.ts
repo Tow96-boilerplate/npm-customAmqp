@@ -1,6 +1,6 @@
 import Queue from './Queue';
-import AmqpMessage from './AmqpMessage';
+import AmqpMessage, { ErrorMessage } from './AmqpMessage';
 
 export default Queue;
 
-export { AmqpMessage };
+export { AmqpMessage, ErrorMessage };
