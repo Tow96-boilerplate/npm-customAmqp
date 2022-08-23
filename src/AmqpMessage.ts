@@ -7,15 +7,23 @@
  */
 
 import { Response } from 'express';
+
+export interface ErrorMessage {
+  message: string;
+  errors: any;
+}
+
 export default class AmqpMessage<P = any> {
   status: number;
   type: string;
   payload: P;
+  language: string;
 
-  constructor(thePayload: P = {} as P, theType: string = '', theStatus: number = 500) {
+  constructor(thePayload: P = {} as P, theType: string = '', theStatus: number = 500, theLanguage: string = 'en') {
     this.status = theStatus;
     this.type = theType;
     this.payload = thePayload;
+    this.language = theLanguage;
   }
 
   /** errorMessage
@@ -27,14 +35,19 @@ export default class AmqpMessage<P = any> {
    *
    * @returns AmqpMessage
    */
-  static errorMessage = (message: string, status: number = 500, errors: any = null): AmqpMessage<any> => {
+  static errorMessage = (
+    message: string,
+    status: number = 500,
+    errors: any = null,
+    language: string = 'en',
+  ): AmqpMessage<ErrorMessage> => {
     // Creates the payload
     const payload: any = { message };
     if (errors) {
       payload.errors = errors;
     }
 
-    return new AmqpMessage(payload, '', status);
+    return new AmqpMessage(payload, 'Error', status, language);
   };
 
   /** sendHttpError
